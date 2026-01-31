@@ -294,7 +294,7 @@ export default function SchoolProfilePage() {
                 }
             }
             setImagePreviews(updatedImages);
-            setImagePreviews(updatedImages);
+
             setImageStores([null, null, null, null, null, null, null, null, null, null]);
 
             await schoolService.updateProfile(user.schoolId, {
@@ -438,6 +438,7 @@ export default function SchoolProfilePage() {
                                     <input type="text" value={addressForm.busStand} onChange={(e) => setAddressForm({ ...addressForm, busStand: e.target.value })} style={inputStyle} placeholder="Nearest bus stop" />
                                 </div>
                             </div>
+                            <div>
                                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 600, color: theme.text }}>Metro Station</label>
                                 <input type="text" value={addressForm.metroStation} onChange={(e) => setAddressForm({ ...addressForm, metroStation: e.target.value })} style={inputStyle} placeholder="Nearest metro station" />
                             </div>
