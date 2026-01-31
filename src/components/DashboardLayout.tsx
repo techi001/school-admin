@@ -9,7 +9,6 @@ import {
     Calendar,
     LogOut,
     Menu,
-    X,
     Moon,
     Sun,
     Settings
