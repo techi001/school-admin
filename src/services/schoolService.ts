@@ -76,6 +76,11 @@ export const schoolService = {
         return response.data;
     },
 
+    async unblockDate(schoolId: string | number, blockId: number) {
+        const response = await api.delete(`/schools/${schoolId}/schedule/${blockId}`);
+        return response.data;
+    },
+
     async getRevenue(schoolId: string | number, filters?: any) {
         const response = await api.get(`/schools/${schoolId}/revenue`, { params: filters });
         return response.data;

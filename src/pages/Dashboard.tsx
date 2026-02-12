@@ -40,6 +40,7 @@ export default function Dashboard() {
     const [activeTab, setActiveTab] = useState<'all' | 'upcoming' | 'completed' | 'cancelled'>('upcoming');
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+    const [showMoreChildInfo, setShowMoreChildInfo] = useState(false);
 
     const [services, setServices] = useState<any[]>([]);
     const [statsSummary, setStatsSummary] = useState({ totalBookings: 0, upcomingCount: 0 });
@@ -61,6 +62,10 @@ export default function Dashboard() {
 
     const [itemsPerPage] = useState(10);
     const [totalPages, setTotalPages] = useState(1);
+
+    useEffect(() => {
+        if (!selectedBooking) setShowMoreChildInfo(false);
+    }, [selectedBooking]);
 
     useEffect(() => {
         if (schoolId) {
@@ -333,7 +338,9 @@ export default function Dashboard() {
                                     </td>
                                     <td style={{ padding: '16px', borderBottom: `1px solid ${theme.cardBorder}`, color: theme.text, fontWeight: 500 }}>{booking.service?.name}</td>
                                     <td style={{ padding: '16px', borderBottom: `1px solid ${theme.cardBorder}`, color: theme.textSecondary }}>{new Date(booking.date).toLocaleDateString('en-IN')}</td>
-                                    <td style={{ padding: '16px', borderBottom: `1px solid ${theme.cardBorder}`, color: theme.textSecondary }}>{new Date(booking.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
+                                    <td style={{ padding: '16px', borderBottom: `1px solid ${theme.cardBorder}`, color: theme.textSecondary }}>
+                                        {booking.slot ? `${booking.slot.startTime} - ${booking.slot.endTime}` : new Date(booking.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                    </td>
                                     <td style={{ padding: '16px', borderBottom: `1px solid ${theme.cardBorder}`, color: theme.textSecondary }}>{booking.parent?.fatherName || 'N/A'}</td>
                                     <td style={{ padding: '16px', borderBottom: `1px solid ${theme.cardBorder}`, color: theme.textSecondary }}>{booking.child?.name || 'N/A'}</td>
                                     <td style={{ padding: '16px', borderBottom: `1px solid ${theme.cardBorder}`, color: theme.textSecondary }}>{booking.parent?.primaryContact || 'N/A'}</td>
@@ -515,7 +522,7 @@ export default function Dashboard() {
                                     <p style={{ color: theme.textMuted, fontSize: '12px', marginBottom: '8px', fontWeight: 600, textTransform: 'uppercase' }}>Service</p>
                                     <p style={{ color: theme.text, fontSize: '16px', fontWeight: 600 }}>{selectedBooking.service?.name}</p>
                                     <p style={{ color: theme.textSecondary, fontSize: '14px', marginTop: '8px' }}>
-                                        {new Date(selectedBooking.date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} • {new Date(selectedBooking.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                        {new Date(selectedBooking.date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} • {selectedBooking.slot ? `${selectedBooking.slot.startTime} - ${selectedBooking.slot.endTime}` : new Date(selectedBooking.date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                                     </p>
                                 </div>
 
@@ -529,7 +536,7 @@ export default function Dashboard() {
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                             <div>
                                                 <p style={{ fontSize: '11px', color: theme.textMuted, marginBottom: '2px' }}>Father's Name</p>
-                                                <p style={{ fontSize: '14px', color: theme.text, fontWeight: 600, margin: 0 }}>{selectedBooking.child?.name || 'N/A'}</p>
+                                                <p style={{ fontSize: '14px', color: theme.text, fontWeight: 600, margin: 0 }}>{selectedBooking.parent?.fatherName || 'N/A'}</p>
                                             </div>
                                             <div>
                                                 <p style={{ fontSize: '11px', color: theme.textMuted, marginBottom: '2px' }}>Mother's Name</p>
@@ -605,6 +612,50 @@ export default function Dashboard() {
                                                 </div>
                                                 <p style={{ fontSize: '12px', color: theme.textSecondary, marginTop: '4px', textAlign: 'right' }}>{selectedBooking.child?.disabilityPercent || 0}%</p>
                                             </div>
+
+                                            <button
+                                                onClick={() => setShowMoreChildInfo(!showMoreChildInfo)}
+                                                style={{
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    color: '#818cf8',
+                                                    fontSize: '12px',
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px',
+                                                    marginTop: '12px',
+                                                    padding: 0
+                                                }}
+                                            >
+                                                {showMoreChildInfo ? 'View Less Details' : 'View More Details'}
+                                            </button>
+
+                                            {showMoreChildInfo && (
+                                                <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px', borderTop: `1px solid ${theme.cardBorder}`, paddingTop: '16px' }}>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                        <div>
+                                                            <p style={{ fontSize: '11px', color: theme.textMuted, marginBottom: '2px' }}>Date of Birth</p>
+                                                            <p style={{ fontSize: '13px', color: theme.text, fontWeight: 500, margin: 0 }}>{selectedBooking.child?.dob || 'N/A'}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p style={{ fontSize: '11px', color: theme.textMuted, marginBottom: '2px' }}>Gender</p>
+                                                            <p style={{ fontSize: '13px', color: theme.text, fontWeight: 500, margin: 0 }}>{selectedBooking.child?.gender || 'N/A'}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <p style={{ fontSize: '11px', color: theme.textMuted, marginBottom: '2px' }}>Current School</p>
+                                                        <p style={{ fontSize: '13px', color: theme.text, fontWeight: 500, margin: 0 }}>{selectedBooking.child?.schoolName || 'N/A'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p style={{ fontSize: '11px', color: theme.textMuted, marginBottom: '2px' }}>School Contact Info</p>
+                                                        <p style={{ fontSize: '13px', color: theme.text, fontWeight: 500, margin: 0 }}>
+                                                            {selectedBooking.child?.schoolContactPerson || 'N/A'} {selectedBooking.child?.schoolContactNumber ? `(${selectedBooking.child.schoolContactNumber})` : ''}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Lock, Phone, Loader2, Calendar, Building2, Eye, EyeOff, BarChart3, GraduationCap } from 'lucide-react';
 import logoImage from '../assets/icon.png';
@@ -398,7 +398,26 @@ export default function Login() {
                             </button>
                         </form>
 
-                        {/* First Login Notice */}
+                        {/* Registration Link */}
+                        <div style={{ marginTop: '20px', textAlign: 'center' }}>
+                            <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
+                                Need to register your school?{' '}
+                                <Link
+                                    to="/register"
+                                    style={{
+                                        color: '#818cf8',
+                                        textDecoration: 'none',
+                                        fontWeight: 600,
+                                        transition: 'all 0.3s'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.color = '#a78bfa'}
+                                    onMouseLeave={(e) => e.currentTarget.style.color = '#818cf8'}
+                                >
+                                    Register Now
+                                </Link>
+                            </p>
+                        </div>
+
                         <div style={{
                             marginTop: '20px',
                             padding: '12px',
@@ -407,7 +426,7 @@ export default function Login() {
                             border: '1px solid rgba(99, 102, 241, 0.2)'
                         }}>
                             <p style={{ color: '#818cf8', fontSize: '11px', margin: 0 }}>
-                                ℹ️ First time login? You'll be asked to set a new password for security.
+                                ℹ️ Please connect with Admin to create the School Login
                             </p>
                         </div>
 

@@ -1,10 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import { useTheme, getTheme } from '../context/ThemeContext';
-import { Plus, Edit, Trash2, X, Heart, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Heart, Loader2, Clock } from 'lucide-react';
+
+interface Slot {
+    id: number;
+    slotName: string;
+    startTime: string;
+    endTime: string;
+    price: number;
+    isActive: boolean;
+}
 
 interface Service {
     id: number;
@@ -13,7 +22,17 @@ interface Service {
     duration: number;
     cost: number;
     schoolId?: number;
+    phoneNumber?: string;
+    advancedBookingEnabled: boolean;
+    slots?: Slot[];
 }
+
+const DEFAULT_SLOTS = [
+    { name: '9:00 AM - 12:00 PM', range: '' },
+    { name: '12:00 PM - 3:00 PM', range: '' },
+    { name: '3:00 PM - 6:00 PM', range: '' },
+    { name: '6:00 PM - 9:00 PM', range: '' }
+];
 
 export default function ManageServices() {
     const { token, user } = useAuth();
@@ -26,8 +45,17 @@ export default function ManageServices() {
     const [formData, setFormData] = useState({
         name: '',
         description: '',
-        cost: ''
+        cost: '',
+        phoneNumber: '',
+        advancedBookingEnabled: false,
     });
+    const [slotPrices, setSlotPrices] = useState<any>({
+        '9:00 AM - 12:00 PM': '0',
+        '12:00 PM - 3:00 PM': '0',
+        '3:00 PM - 6:00 PM': '0',
+        '6:00 PM - 9:00 PM': '0'
+    });
+    const [slotUpdates, setSlotUpdates] = useState<any[]>([]);
 
     useEffect(() => {
         fetchServices();
@@ -35,9 +63,7 @@ export default function ManageServices() {
 
     const fetchServices = async () => {
         try {
-            const response = await axios.get(`http://localhost:3000/api/schools/${user?.schoolId}/services`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.get(`/schools/${user?.schoolId}/services`);
             setServices(response.data);
         } catch (error) {
             console.error('Error fetching services', error);
@@ -49,7 +75,7 @@ export default function ManageServices() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const serviceData = {
+            const serviceData: any = {
                 ...formData,
                 duration: 180,
                 cost: Number(formData.cost),
@@ -57,21 +83,21 @@ export default function ManageServices() {
             };
 
             if (editingService) {
-                await axios.put(`http://localhost:3000/api/schools/service/${editingService.id}`, serviceData, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                serviceData.slotUpdates = slotUpdates;
+                await api.put(`/schools/service/${editingService.id}`, { ...serviceData, advancedBookingEnabled: formData.advancedBookingEnabled });
             } else {
-                await axios.post(`http://localhost:3000/api/schools/${user?.schoolId}/service`, serviceData, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                serviceData.slotPrices = slotPrices;
+                await api.post(`/schools/${user?.schoolId}/service`, { ...serviceData, advancedBookingEnabled: formData.advancedBookingEnabled });
             }
             setIsModalOpen(false);
             setEditingService(null);
-            setFormData({ name: '', description: '', cost: '' });
+            setFormData({ name: '', description: '', cost: '', phoneNumber: '', advancedBookingEnabled: false });
+            setSlotPrices({ '9:00 AM - 12:00 PM': '0', '12:00 PM - 3:00 PM': '0', '3:00 PM - 6:00 PM': '0', '6:00 PM - 9:00 PM': '0' });
+            setSlotUpdates([]);
             fetchServices();
             Swal.fire({
                 title: 'Success!',
-                text: editingService ? 'Service updated successfully.' : 'Service added successfully.',
+                text: editingService ? 'Service and slots updated successfully.' : 'Service and default slots added successfully.',
                 icon: 'success',
                 confirmButtonColor: '#10b981'
             });
@@ -98,9 +124,7 @@ export default function ManageServices() {
 
         if (result.isConfirmed) {
             try {
-                await axios.delete(`http://localhost:3000/api/schools/service/${id}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                await api.delete(`/schools/service/${id}`);
                 fetchServices();
                 Swal.fire(
                     'Deleted!',
@@ -123,12 +147,36 @@ export default function ManageServices() {
         setFormData({
             name: service.name,
             description: service.description || '',
-            cost: service.cost.toString()
+            cost: service.cost.toString(),
+            phoneNumber: service.phoneNumber || '',
+            advancedBookingEnabled: service.advancedBookingEnabled || false
         });
+        if (service.slots) {
+            // Sort slots to match timing order
+            const order = ['9:00 AM - 12:00 PM', '12:00 PM - 3:00 PM', '3:00 PM - 6:00 PM', '6:00 PM - 9:00 PM'];
+            const sortedSlots = [...service.slots].sort((a, b) => order.indexOf(a.slotName) - order.indexOf(b.slotName));
+            setSlotUpdates(sortedSlots.map(s => ({
+                id: s.id,
+                slotName: s.slotName,
+                price: s.price.toString(),
+                isActive: s.isActive,
+                range: ''
+            })));
+        } else {
+            setSlotUpdates([]);
+        }
         setIsModalOpen(true);
     };
 
+    const handleSlotPriceChange = (slotName: string, price: string) => {
+        setSlotPrices({ ...slotPrices, [slotName]: price });
+    };
 
+    const handleSlotUpdateChange = (index: number, field: string, value: any) => {
+        const newUpdates = [...slotUpdates];
+        newUpdates[index] = { ...newUpdates[index], [field]: value };
+        setSlotUpdates(newUpdates);
+    };
 
     if (loading) {
         return (
@@ -149,7 +197,8 @@ export default function ManageServices() {
                 <button
                     onClick={() => {
                         setEditingService(null);
-                        setFormData({ name: '', description: '', cost: '' });
+                        setFormData({ name: '', description: '', cost: '', phoneNumber: '', advancedBookingEnabled: false });
+                        setSlotPrices({ '9:00 AM - 12:00 PM': '0', '12:00 PM - 3:00 PM': '0', '3:00 PM - 6:00 PM': '0', '6:00 PM - 9:00 PM': '0' });
                         setIsModalOpen(true);
                     }}
                     style={{
@@ -244,6 +293,11 @@ export default function ManageServices() {
                                             {service.description}
                                         </p>
                                     )}
+                                    {service.phoneNumber && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '16px', fontSize: '13px', color: theme.textSecondary }}>
+                                            <span style={{ fontWeight: 600 }}>Phone:</span> {service.phoneNumber}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div style={{
@@ -270,10 +324,33 @@ export default function ManageServices() {
                                         borderRadius: '10px',
                                         border: '1px solid rgba(34, 197, 94, 0.2)'
                                     }}>
-                                        <p style={{ color: theme.textMuted, fontSize: '11px', marginBottom: '4px' }}>Cost</p>
+                                        <p style={{ color: theme.textMuted, fontSize: '11px', marginBottom: '4px' }}>Base Cost</p>
                                         <p style={{ color: '#4ade80', fontSize: '16px', fontWeight: 700, margin: 0 }}>₹{service.cost}</p>
                                     </div>
                                 </div>
+
+                                {/* Per-Slot Costs */}
+                                {service.slots && service.slots.length > 0 && (
+                                    <div style={{ marginBottom: '16px' }}>
+                                        <p style={{ color: theme.textSecondary, fontSize: '12px', fontWeight: 600, marginBottom: '8px' }}>Slot Pricing:</p>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                            {Array.from(new Map(service.slots.map(slot => [slot.slotName, slot])).values()).map(slot => (
+                                                <div key={slot.id} style={{
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    padding: '8px 10px',
+                                                    background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc',
+                                                    borderRadius: '8px',
+                                                    fontSize: '11px',
+                                                    border: `1px solid ${theme.cardBorder}`
+                                                }}>
+                                                    <span style={{ color: theme.textSecondary, fontWeight: 600 }}>{slot.slotName}</span>
+                                                    <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '13px' }}>₹{slot.price}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                                     <button
@@ -340,7 +417,9 @@ export default function ManageServices() {
                         background: isDark ? '#1e293b' : '#ffffff',
                         borderRadius: '24px',
                         width: '100%',
-                        maxWidth: '500px',
+                        maxWidth: '550px',
+                        maxHeight: '90vh',
+                        overflowY: 'auto',
                         border: `1px solid ${theme.cardBorder}`,
                         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
                     }}>
@@ -415,7 +494,7 @@ export default function ManageServices() {
                                         </div>
                                     </div>
                                     <div>
-                                        <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: theme.textSecondary, marginBottom: '8px' }}>Cost (₹)</label>
+                                        <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: theme.textSecondary, marginBottom: '8px' }}>Base Cost (₹)</label>
                                         <input
                                             type="number"
                                             required
@@ -435,6 +514,115 @@ export default function ManageServices() {
                                             placeholder="500"
                                         />
                                     </div>
+                                </div>
+
+                                {/* Integrated Slot Prices - Fixed Slots */}
+                                <div style={{ background: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc', padding: '20px', borderRadius: '16px', border: `1px solid ${theme.cardBorder}` }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                                        <Clock style={{ width: '18px', height: '18px', color: '#818cf8' }} />
+                                        <h3 style={{ fontSize: '15px', fontWeight: 700, color: theme.text, margin: 0 }}>Slot Pricing (Fixed Slots)</h3>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                        {editingService ? (
+                                            slotUpdates.map((slot, index) => (
+                                                <div key={slot.id}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                                        <label style={{ fontSize: '12px', fontWeight: 600, color: theme.textSecondary }}>{slot.slotName}</label>
+                                                        <span style={{ fontSize: '10px', color: theme.textMuted }}>{slot.range}</span>
+                                                    </div>
+                                                    <div style={{ position: 'relative' }}>
+                                                        <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted, fontSize: '13px' }}>₹</span>
+                                                        <input
+                                                            type="number"
+                                                            value={slot.price}
+                                                            onChange={e => handleSlotUpdateChange(index, 'price', e.target.value)}
+                                                            style={{
+                                                                width: '100%',
+                                                                padding: '10px 12px 10px 24px',
+                                                                background: theme.input,
+                                                                border: `1px solid ${theme.inputBorder}`,
+                                                                borderRadius: '8px',
+                                                                color: theme.text,
+                                                                fontSize: '13px',
+                                                                outline: 'none',
+                                                                fontWeight: 600
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            DEFAULT_SLOTS.map(slot => (
+                                                <div key={slot.name}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                                        <label style={{ fontSize: '12px', fontWeight: 600, color: theme.textSecondary }}>{slot.name}</label>
+                                                        <span style={{ fontSize: '10px', color: theme.textMuted }}>{slot.range}</span>
+                                                    </div>
+                                                    <div style={{ position: 'relative' }}>
+                                                        <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted, fontSize: '13px' }}>₹</span>
+                                                        <input
+                                                            type="number"
+                                                            value={slotPrices[slot.name]}
+                                                            onChange={e => handleSlotPriceChange(slot.name, e.target.value)}
+                                                            style={{
+                                                                width: '100%',
+                                                                padding: '10px 12px 10px 24px',
+                                                                background: theme.input,
+                                                                border: `1px solid ${theme.inputBorder}`,
+                                                                borderRadius: '8px',
+                                                                color: theme.text,
+                                                                fontSize: '13px',
+                                                                outline: 'none',
+                                                                fontWeight: 600
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                    <p style={{ marginTop: '12px', fontSize: '11px', color: theme.textMuted, fontStyle: 'italic' }}>* These four slots are standardized for this service and cannot be renamed.</p>
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: theme.textSecondary, marginBottom: '8px' }}>Phone Number</label>
+                                    <input
+                                        type="text"
+                                        value={formData.phoneNumber}
+                                        onChange={e => setFormData({ ...formData, phoneNumber: e.target.value })}
+                                        style={{
+                                            width: '100%',
+                                            padding: '12px 14px',
+                                            background: theme.input,
+                                            border: `1px solid ${theme.inputBorder}`,
+                                            borderRadius: '10px',
+                                            color: theme.text,
+                                            fontSize: '14px',
+                                            outline: 'none'
+                                        }}
+                                        placeholder="+91 98765 43210"
+                                    />
+                                </div>
+
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '16px',
+                                    background: 'rgba(99, 102, 241, 0.05)',
+                                    borderRadius: '12px',
+                                    border: '1px solid rgba(99, 102, 241, 0.1)'
+                                }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: theme.text, marginBottom: '4px' }}>Advanced Booking (30 Days)</label>
+                                        <p style={{ fontSize: '12px', color: theme.textSecondary, margin: 0 }}>Enable parents to book up to a month in advance.</p>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.advancedBookingEnabled}
+                                        onChange={e => setFormData({ ...formData, advancedBookingEnabled: e.target.checked })}
+                                        style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                                    />
                                 </div>
                             </div>
                             <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>

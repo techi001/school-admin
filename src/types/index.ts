@@ -20,14 +20,24 @@ export interface Booking {
         name: string;
         age: number;
         gender?: string;
+        dob?: string;
         aadharNumber?: string;
         disabilityType?: string;
         disabilityPercent?: number;
+        schoolName?: string;
+        schoolAddress?: string;
+        schoolContactPerson?: string;
+        schoolContactNumber?: string;
     };
     childAge?: number;
     specialRequirements?: string;
     parentEmail?: string;
     paymentStatus?: 'paid' | 'pending' | 'refunded';
+    slot?: {
+        slotName: string;
+        startTime: string;
+        endTime: string;
+    };
 }
 
 // School types
@@ -49,6 +59,7 @@ export interface School {
     logoUrl?: string;
     principalPhotoUrl?: string;
     schoolImages: string[];
+    schoolNumber?: string;
 }
 
 // Slot types

@@ -10,6 +10,7 @@ import SchoolProfile from './pages/SchoolProfile';
 import ManageSlots from './pages/ManageSlots';
 import ManageServices from './pages/ManageServices';
 import Account from './pages/Account';
+import Register from './pages/Register';
 import './index.css';
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
                     <Routes>
                         {/* Public Routes */}
                         <Route path="/login" element={<Login />} />
+                        <Route path="/register" element={<Register />} />
                         <Route path="/reset-password" element={<ResetPassword />} />
 
                         {/* Protected Routes */}

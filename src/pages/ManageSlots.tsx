@@ -68,31 +68,13 @@ const ManageSlots: React.FC = () => {
         const [daysEnabled, setDaysEnabled] = useState([true, true, true, true, true, false, false]);
         const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         const [loading, setLoading] = useState(false);
-        const [dates, setDates] = useState<any>(null);
-        const [hackValue, setHackValue] = useState<any>(null);
-
-        const disabledDate = (current: dayjs.Dayjs) => {
-            if (!dates) {
-                return false;
-            }
-            const tooLate = dates[0] && current.diff(dates[0], 'days') > 29;
-            const tooEarly = dates[0] && dates[0].diff(current, 'days') > 29;
-            return !!tooEarly || !!tooLate;
-        };
-
-        const onOpenChange = (open: boolean) => {
-            if (open) {
-                setDates(null);
-                setHackValue(null);
-            }
-        };
 
         // Pre-fill static rows for MVP
         const [slotRows, setSlotRows] = useState([
-            { timeLabel: '9:00 AM - 12:00 PM', capacity: 15, start: '09:00', end: '12:00' },
-            { timeLabel: '12:00 PM - 3:00 PM', capacity: 15, start: '12:00', end: '15:00' },
-            { timeLabel: '3:00 PM - 6:00 PM', capacity: 15, start: '15:00', end: '18:00' },
-            { timeLabel: '6:00 PM - 9:00 PM', capacity: 15, start: '18:00', end: '21:00' },
+            { timeLabel: '9:00 AM - 12:00 PM', capacity: 15, price: 0, start: '09:00', end: '12:00' },
+            { timeLabel: '12:00 PM - 3:00 PM', capacity: 15, price: 0, start: '12:00', end: '15:00' },
+            { timeLabel: '3:00 PM - 6:00 PM', capacity: 15, price: 0, start: '15:00', end: '18:00' },
+            { timeLabel: '6:00 PM - 9:00 PM', capacity: 15, price: 0, start: '18:00', end: '21:00' },
         ]);
 
         const handleCapacityChange = (idx: number, val: string) => {
@@ -101,13 +83,20 @@ const ManageSlots: React.FC = () => {
             setSlotRows(newRows);
         };
 
+        const handlePriceChange = (idx: number, val: string) => {
+            const newRows = [...slotRows];
+            newRows[idx].price = parseFloat(val) || 0;
+            setSlotRows(newRows);
+        };
+
         const onFinish = async (values: any) => {
             if (!schoolId) return;
             setLoading(true);
             try {
-                const { serviceId, dateRange } = values;
-                const fromDate = dateRange[0].format('YYYY-MM-DD');
-                const endDate = dateRange[1].format('YYYY-MM-DD');
+                const { serviceId, startDate, isRecurring } = values;
+                const fromDate = startDate.format('YYYY-MM-DD');
+                // Calculate 30 days from startDate
+                const endDate = startDate.add(30, 'days').format('YYYY-MM-DD');
                 const activeWeekdays = days.filter((_, idx) => daysEnabled[idx]);
 
                 if (activeWeekdays.length === 0) {
@@ -133,10 +122,12 @@ const ManageSlots: React.FC = () => {
                             startTime: row.start,
                             endTime: row.end,
                             capacity: row.capacity,
+                            price: row.price,
                             isActive: true,
                             fromDate,
                             endDate,
-                            weekdays: activeWeekdays
+                            weekdays: activeWeekdays,
+                            isRecurring: isRecurring || false
                         });
                     }
                     return Promise.resolve();
@@ -177,7 +168,23 @@ const ManageSlots: React.FC = () => {
                         <Row gutter={[24, 24]}>
                             <Col xs={24} md={12}>
                                 <Form.Item label={<span style={{ color: appTheme.text }}>Select Service</span>} name="serviceId" rules={[{ required: true, message: 'Please select a service' }]}>
-                                    <Select placeholder="Choose Service" style={{ width: '100%' }}>
+                                    <Select
+                                        placeholder="Choose Service"
+                                        style={{ width: '100%' }}
+                                        onChange={(serviceId) => {
+                                            const selectedService = services.find(s => s.id === serviceId);
+                                            if (selectedService && selectedService.slots) {
+                                                const newRows = slotRows.map(row => {
+                                                    const slotData = selectedService.slots.find((s: any) => s.slotName === row.timeLabel);
+                                                    return {
+                                                        ...row,
+                                                        price: slotData ? slotData.price : 0
+                                                    };
+                                                });
+                                                setSlotRows(newRows);
+                                            }
+                                        }}
+                                    >
                                         {services.map(s => (
                                             <Option key={s.id} value={s.id}>{s.name}</Option>
                                         ))}
@@ -185,18 +192,21 @@ const ManageSlots: React.FC = () => {
                                 </Form.Item>
                             </Col>
                             <Col xs={24} md={12}>
-                                <Form.Item label={<span style={{ color: appTheme.text }}>Date Range</span>} name="dateRange" rules={[{ required: true, message: 'Please select dates' }]}>
-                                    <RangePicker
+                                <Form.Item label={<span style={{ color: appTheme.text }}>Start Date</span>} name="startDate" rules={[{ required: true, message: 'Please select a start date' }]}>
+                                    <DatePicker
                                         style={{ width: '100%' }}
                                         format="DD/MM/YYYY"
-                                        placeholder={['Start Date', 'End Date']}
-                                        value={hackValue || undefined}
-                                        disabledDate={disabledDate}
-                                        onCalendarChange={(val: any) => setDates(val)}
-                                        onChange={(val: any) => setHackValue(val)}
-                                        onOpenChange={onOpenChange}
+                                        placeholder="Start Date"
                                     />
                                 </Form.Item>
+                            </Col>
+                            <Col xs={24} md={24}>
+                                <Form.Item label={<span style={{ color: appTheme.text }}>Automatic Recurring (Monthly)</span>} name="isRecurring" valuePropName="checked">
+                                    <Switch defaultChecked={true} />
+                                </Form.Item>
+                                <Paragraph style={{ color: appTheme.textMuted, fontSize: 12, marginTop: -10 }}>
+                                    When enabled, this slot block will automatically renew every 30 days.
+                                </Paragraph>
                             </Col>
                         </Row>
 
@@ -235,12 +245,22 @@ const ManageSlots: React.FC = () => {
                                 <Col xs={14} md={16}>
                                     <Text strong style={{ color: appTheme.text }}>{row.timeLabel}</Text>
                                 </Col>
-                                <Col xs={10} md={8}>
+                                <Col xs={10} md={4}>
                                     <Input
                                         type="number"
                                         value={row.capacity}
                                         onChange={(e) => handleCapacityChange(idx, e.target.value)}
                                         suffix={<span style={{ color: appTheme.textMuted, fontSize: 12 }}>seats</span>}
+                                        style={{ textAlign: 'center', borderRadius: '6px' }}
+                                    />
+                                </Col>
+                                <Col xs={24} md={4}>
+                                    <Input
+                                        type="number"
+                                        value={row.price}
+                                        onChange={(e) => handlePriceChange(idx, e.target.value)}
+                                        prefix={<span style={{ color: appTheme.textMuted, fontSize: 12 }}>₹</span>}
+                                        placeholder="Price"
                                         style={{ textAlign: 'center', borderRadius: '6px' }}
                                     />
                                 </Col>
@@ -262,6 +282,74 @@ const ManageSlots: React.FC = () => {
     const BlockDateContent = () => {
         const [form] = Form.useForm();
         const [loading, setLoading] = useState(false);
+        const [blockedDates, setBlockedDates] = useState<any[]>([]);
+        const [fetching, setFetching] = useState(false);
+
+        useEffect(() => {
+            if (schoolId) {
+                fetchBlockedDates();
+            }
+        }, [schoolId]);
+
+        const fetchBlockedDates = async () => {
+            setFetching(true);
+            try {
+                const data = await schoolService.getSchedule(schoolId!);
+                setBlockedDates(data || []);
+            } catch (error) {
+                console.error('Failed to fetch blocked dates', error);
+            } finally {
+                setFetching(false);
+            }
+        };
+
+        const handleDeleteBlock = async (id: number) => {
+            try {
+                await schoolService.unblockDate(schoolId!, id);
+                message.success('Date unblocked successfully');
+                fetchBlockedDates();
+            } catch (error: any) {
+                message.error(error.message || 'Failed to unblock date');
+            }
+        };
+
+        const columns = [
+            {
+                title: 'Date',
+                dataIndex: 'blockedDate',
+                key: 'blockedDate',
+                render: (text: string) => dayjs(text).format('DD MMM YYYY')
+            },
+            {
+                title: 'Service Scope',
+                dataIndex: 'serviceId',
+                key: 'serviceId',
+                render: (serviceId: number | null) => {
+                    if (!serviceId) return <Tag color="orange">All Services</Tag>;
+                    const service = services.find(s => s.id === serviceId);
+                    return <Tag color="blue">{service ? service.name : 'Specific Service'}</Tag>;
+                }
+            },
+            {
+                title: 'Reason',
+                dataIndex: 'reason',
+                key: 'reason',
+            },
+            {
+                title: 'Action',
+                key: 'action',
+                render: (_: any, record: any) => (
+                    <Button
+                        danger
+                        type="text"
+                        icon={<StopOutlined />}
+                        onClick={() => handleDeleteBlock(record.id)}
+                    >
+                        Unblock
+                    </Button>
+                )
+            }
+        ];
 
         const onFinish = async (values: any) => {
             setLoading(true);
@@ -280,6 +368,7 @@ const ManageSlots: React.FC = () => {
                     confirmButtonColor: '#10b981'
                 });
                 form.resetFields();
+                fetchBlockedDates();
             } catch (err: any) {
                 Swal.fire({
                     title: 'Block Failed',
@@ -326,6 +415,18 @@ const ManageSlots: React.FC = () => {
                         </div>
                     </Form>
                 </Card>
+
+                <div style={{ marginTop: 40 }}>
+                    <Title level={4} style={{ marginBottom: 16, color: appTheme.text, textAlign: 'center' }}>Blocked Dates History</Title>
+                    <Table
+                        dataSource={blockedDates}
+                        columns={columns}
+                        rowKey="id"
+                        loading={fetching}
+                        pagination={{ pageSize: 5 }}
+                        style={{ background: isDark ? 'rgba(255,255,255,0.05)' : '#fff', borderRadius: 8 }}
+                    />
+                </div>
             </div>
         );
     };
@@ -675,6 +776,7 @@ const ManageSlots: React.FC = () => {
             try {
                 await schoolService.updateSlot(editingSlot.id, {
                     capacity: editingSlot.capacity,
+                    price: editingSlot.price,
                     isActive: editingSlot.isActive
                 });
                 message.success('Slot updated successfully');
@@ -746,6 +848,12 @@ const ManageSlots: React.FC = () => {
                 render: (text: any) => <span style={{ color: appTheme.text }}>{text}</span>
             },
             {
+                title: 'Amount (₹)',
+                dataIndex: 'price',
+                key: 'price',
+                render: (text: any) => <span style={{ color: appTheme.text, fontWeight: 'bold' }}>₹{text}</span>
+            },
+            {
                 title: 'Status',
                 dataIndex: 'isActive',
                 key: 'isActive',
@@ -801,6 +909,13 @@ const ManageSlots: React.FC = () => {
                                     type="number"
                                     value={editingSlot.capacity}
                                     onChange={(e) => setEditingSlot({ ...editingSlot, capacity: parseInt(e.target.value) || 0 })}
+                                />
+                            </Form.Item>
+                            <Form.Item label="Amount (₹)">
+                                <Input
+                                    type="number"
+                                    value={editingSlot.price}
+                                    onChange={(e) => setEditingSlot({ ...editingSlot, price: parseFloat(e.target.value) || 0 })}
                                 />
                             </Form.Item>
                             <Form.Item label="Status">

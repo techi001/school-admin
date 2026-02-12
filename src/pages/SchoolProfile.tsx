@@ -33,7 +33,6 @@ export default function SchoolProfilePage() {
 
     const [achievements, setAchievements] = useState<string[]>(['']);
     const [amenities, setAmenities] = useState<string[]>(['']);
-    const [services, setServices] = useState<string[]>(['']);
 
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [principalPreview, setPrincipalPreview] = useState<string | null>(null);
@@ -65,15 +64,14 @@ export default function SchoolProfilePage() {
                     schoolNumber: profile.schoolNumber || '',
                 });
 
-                if (profile.latitude && profile.longitude) {
-                    const coords: [number, number] = [profile.latitude, profile.longitude];
+                if (profile.latitude !== undefined && profile.longitude !== undefined && profile.latitude !== null && profile.longitude !== null) {
+                    const coords: [number, number] = [Number(profile.latitude), Number(profile.longitude)];
                     setMapPosition(coords);
                     setMapCenter(coords);
                 }
 
                 setAchievements(profile.achievements?.length ? profile.achievements : ['']);
                 setAmenities(profile.amenities?.length ? profile.amenities : ['']);
-                setServices(profile.servicesOffered?.length ? profile.servicesOffered : ['']);
 
                 if (profile.logoUrl) setLogoPreview(profile.logoUrl);
                 if (profile.principalPhoto) setPrincipalPreview(profile.principalPhoto);
@@ -218,7 +216,6 @@ export default function SchoolProfilePage() {
             await schoolService.updateProfile(user.schoolId, {
                 achievements: achievements.filter(a => a.trim()),
                 amenities: amenities.filter(a => a.trim()),
-                servicesOffered: services.filter(s => s.trim()),
             });
             Swal.fire({
                 icon: 'success',
@@ -444,7 +441,13 @@ export default function SchoolProfilePage() {
                             </div>
                             <div>
                                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 600, color: theme.text }}>School Phone Number</label>
-                                <input type="text" value={addressForm.schoolNumber} onChange={(e) => setAddressForm({ ...addressForm, schoolNumber: e.target.value })} style={inputStyle} placeholder="Enter school phone number" />
+                                <input
+                                    type="text"
+                                    value={addressForm.schoolNumber}
+                                    onChange={(e) => setAddressForm({ ...addressForm, schoolNumber: e.target.value })}
+                                    style={inputStyle}
+                                    placeholder="Enter school phone number"
+                                />
                             </div>
                             <button onClick={saveAddressDetails} disabled={isSaving || !addressForm.name || !addressForm.address || !addressForm.city} style={{
                                 padding: '14px 24px', fontSize: '14px', fontWeight: 600, color: 'white',
@@ -502,11 +505,11 @@ export default function SchoolProfilePage() {
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                                         <div>
                                             <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', color: theme.textMuted }}>Latitude</label>
-                                            <input type="text" value={mapPosition[0].toFixed(6)} readOnly style={{ ...inputStyle, background: theme.card }} />
+                                            <input type="text" value={typeof mapPosition[0] === 'number' ? mapPosition[0].toFixed(6) : mapPosition[0]} readOnly style={{ ...inputStyle, background: theme.card }} />
                                         </div>
                                         <div>
                                             <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', color: theme.textMuted }}>Longitude</label>
-                                            <input type="text" value={mapPosition[1].toFixed(6)} readOnly style={{ ...inputStyle, background: theme.card }} />
+                                            <input type="text" value={typeof mapPosition[1] === 'number' ? mapPosition[1].toFixed(6) : mapPosition[1]} readOnly style={{ ...inputStyle, background: theme.card }} />
                                         </div>
                                     </div>
                                 </div>
@@ -523,7 +526,6 @@ export default function SchoolProfilePage() {
                         <div style={{ display: 'grid', gap: '32px', maxWidth: '600px' }}>
                             {[{ label: 'School Achievements', items: achievements, setter: setAchievements, required: false },
                             { label: 'School Amenities', items: amenities, setter: setAmenities, required: true },
-                            { label: 'Services Offered', items: services, setter: setServices, required: true }
                             ].map(({ label, items, setter, required }) => (
                                 <div key={label}>
                                     <label style={{ display: 'block', marginBottom: '12px', fontSize: '14px', fontWeight: 600, color: theme.text }}>{label} {required && <span style={{ color: '#ef4444' }}>*</span>}</label>
