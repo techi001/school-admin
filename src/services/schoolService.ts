@@ -133,5 +133,17 @@ export const schoolService = {
         const payload: any = { date, updates, ...options };
         const response = await api.put(`/schools/${schoolId}/slots/availability`, payload);
         return response.data;
+    },
+
+    async getSlotPrices(schoolId: string | number, serviceId?: number) {
+        const params: any = {};
+        if (serviceId) params.serviceId = serviceId;
+        const response = await api.get(`/schools/${schoolId}/slot-prices`, { params });
+        return response.data;
+    },
+
+    async updateSlotPrices(schoolId: string | number, prices: { slotName: string; startTime: string; endTime: string; price: number }[], serviceId?: number) {
+        const response = await api.post(`/schools/${schoolId}/slot-prices`, { prices, serviceId });
+        return response.data;
     }
 };

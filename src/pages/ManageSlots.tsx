@@ -134,6 +134,20 @@ const ManageSlots: React.FC = () => {
                 });
 
                 await Promise.all(promises);
+
+                // Save slot prices to school_slot_prices table
+                const pricesToSave = slotRows
+                    .filter(row => row.capacity > 0)
+                    .map(row => ({
+                        slotName: row.timeLabel,
+                        startTime: row.start,
+                        endTime: row.end,
+                        price: row.price
+                    }));
+                if (pricesToSave.length > 0) {
+                    await schoolService.updateSlotPrices(schoolId, pricesToSave, serviceId);
+                }
+
                 Swal.fire({
                     title: 'Schedule Created!',
                     text: 'The new schedule slots have been successfully created.',
@@ -776,9 +790,19 @@ const ManageSlots: React.FC = () => {
             try {
                 await schoolService.updateSlot(editingSlot.id, {
                     capacity: editingSlot.capacity,
-                    price: editingSlot.price,
                     isActive: editingSlot.isActive
                 });
+
+                // Save updated price to school_slot_prices table
+                if (editingSlot.price !== undefined) {
+                    await schoolService.updateSlotPrices(schoolId!, [{
+                        slotName: editingSlot.slotName,
+                        startTime: editingSlot.startTime,
+                        endTime: editingSlot.endTime,
+                        price: editingSlot.price
+                    }], editingSlot.serviceId);
+                }
+
                 message.success('Slot updated successfully');
                 setIsEditModalOpen(false);
                 setEditingSlot(null);

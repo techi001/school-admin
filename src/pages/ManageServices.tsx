@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from 'react';
 import api from '../services/api';
+import { schoolService } from '../services/schoolService';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import { useTheme, getTheme } from '../context/ThemeContext';
@@ -82,12 +83,50 @@ export default function ManageServices() {
                 schoolId: user?.schoolId
             };
 
+            let savedServiceId: number | undefined;
+
             if (editingService) {
                 serviceData.slotUpdates = slotUpdates;
                 await api.put(`/schools/service/${editingService.id}`, { ...serviceData, advancedBookingEnabled: formData.advancedBookingEnabled });
+                savedServiceId = editingService.id;
+
+                // Save slot prices to school_slot_prices table
+                if (slotUpdates.length > 0 && user?.schoolId) {
+                    const slotTimeMap: Record<string, { start: string; end: string }> = {
+                        '9:00 AM - 12:00 PM': { start: '09:00', end: '12:00' },
+                        '12:00 PM - 3:00 PM': { start: '12:00', end: '15:00' },
+                        '3:00 PM - 6:00 PM': { start: '15:00', end: '18:00' },
+                        '6:00 PM - 9:00 PM': { start: '18:00', end: '21:00' }
+                    };
+                    const pricesToSave = slotUpdates.map(s => ({
+                        slotName: s.slotName,
+                        startTime: slotTimeMap[s.slotName]?.start || '',
+                        endTime: slotTimeMap[s.slotName]?.end || '',
+                        price: Number(s.price) || 0
+                    }));
+                    await schoolService.updateSlotPrices(user.schoolId, pricesToSave, savedServiceId);
+                }
             } else {
                 serviceData.slotPrices = slotPrices;
-                await api.post(`/schools/${user?.schoolId}/service`, { ...serviceData, advancedBookingEnabled: formData.advancedBookingEnabled });
+                const response = await api.post(`/schools/${user?.schoolId}/service`, { ...serviceData, advancedBookingEnabled: formData.advancedBookingEnabled });
+                savedServiceId = response.data?.id;
+
+                // Save slot prices to school_slot_prices table
+                if (savedServiceId && user?.schoolId) {
+                    const slotTimeMap: Record<string, { start: string; end: string }> = {
+                        '9:00 AM - 12:00 PM': { start: '09:00', end: '12:00' },
+                        '12:00 PM - 3:00 PM': { start: '12:00', end: '15:00' },
+                        '3:00 PM - 6:00 PM': { start: '15:00', end: '18:00' },
+                        '6:00 PM - 9:00 PM': { start: '18:00', end: '21:00' }
+                    };
+                    const pricesToSave = Object.entries(slotPrices).map(([slotName, price]) => ({
+                        slotName,
+                        startTime: slotTimeMap[slotName]?.start || '',
+                        endTime: slotTimeMap[slotName]?.end || '',
+                        price: Number(price) || 0
+                    }));
+                    await schoolService.updateSlotPrices(user.schoolId, pricesToSave, savedServiceId);
+                }
             }
             setIsModalOpen(false);
             setEditingService(null);
@@ -142,7 +181,7 @@ export default function ManageServices() {
         }
     };
 
-    const openEditModal = (service: Service) => {
+    const openEditModal = (service: any) => {
         setEditingService(service);
         setFormData({
             name: service.name,
@@ -152,16 +191,27 @@ export default function ManageServices() {
             advancedBookingEnabled: service.advancedBookingEnabled || false
         });
         if (service.slots) {
-            // Sort slots to match timing order
+            // Sort slots to match timing order and deduplicate by slotName
             const order = ['9:00 AM - 12:00 PM', '12:00 PM - 3:00 PM', '3:00 PM - 6:00 PM', '6:00 PM - 9:00 PM'];
-            const sortedSlots = [...service.slots].sort((a, b) => order.indexOf(a.slotName) - order.indexOf(b.slotName));
-            setSlotUpdates(sortedSlots.map(s => ({
-                id: s.id,
-                slotName: s.slotName,
-                price: s.price.toString(),
-                isActive: s.isActive,
-                range: ''
-            })));
+            const uniqueSlots = Array.from(
+                new Map(service.slots.map((s: any) => [s.slotName, s])).values()
+            ).sort((a: any, b: any) => order.indexOf(a.slotName) - order.indexOf(b.slotName));
+
+            // Look up actual prices from slotPrices (school_slot_prices table)
+            const pricesFromTable: any[] = service.slotPrices || [];
+
+            setSlotUpdates(uniqueSlots.map((s: any) => {
+                // Find matching price from school_slot_prices
+                const priceEntry = pricesFromTable.find((p: any) => p.slotName === s.slotName)
+                    || pricesFromTable.find((p: any) => p.startTime === s.startTime && p.endTime === s.endTime);
+                return {
+                    id: s.id,
+                    slotName: s.slotName,
+                    price: priceEntry ? Number(priceEntry.price).toString() : '0',
+                    isActive: s.isActive,
+                    range: ''
+                };
+            }));
         } else {
             setSlotUpdates([]);
         }
@@ -329,8 +379,28 @@ export default function ManageServices() {
                                     </div>
                                 </div>
 
-                                {/* Per-Slot Costs */}
-                                {service.slots && service.slots.length > 0 && (
+                                {/* Per-Slot Costs - read from slotPrices (school_slot_prices table) */}
+                                {((service as any).slotPrices && (service as any).slotPrices.length > 0) ? (
+                                    <div style={{ marginBottom: '16px' }}>
+                                        <p style={{ color: theme.textSecondary, fontSize: '12px', fontWeight: 600, marginBottom: '8px' }}>Slot Pricing:</p>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                            {(service as any).slotPrices.map((sp: any) => (
+                                                <div key={sp.id} style={{
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    padding: '8px 10px',
+                                                    background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc',
+                                                    borderRadius: '8px',
+                                                    fontSize: '11px',
+                                                    border: `1px solid ${theme.cardBorder}`
+                                                }}>
+                                                    <span style={{ color: theme.textSecondary, fontWeight: 600 }}>{sp.slotName}</span>
+                                                    <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '13px' }}>₹{Number(sp.price)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : service.slots && service.slots.length > 0 ? (
                                     <div style={{ marginBottom: '16px' }}>
                                         <p style={{ color: theme.textSecondary, fontSize: '12px', fontWeight: 600, marginBottom: '8px' }}>Slot Pricing:</p>
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
@@ -345,12 +415,12 @@ export default function ManageServices() {
                                                     border: `1px solid ${theme.cardBorder}`
                                                 }}>
                                                     <span style={{ color: theme.textSecondary, fontWeight: 600 }}>{slot.slotName}</span>
-                                                    <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '13px' }}>₹{slot.price}</span>
+                                                    <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '13px' }}>₹0</span>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
-                                )}
+                                ) : null}
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                                     <button
