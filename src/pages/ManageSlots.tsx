@@ -65,6 +65,7 @@ const ManageSlots: React.FC = () => {
     // --- Create Schedule Content ---
     const CreateScheduleContent = () => {
         const [form] = Form.useForm();
+        const startDateValue = Form.useWatch('startDate', form);
         const [daysEnabled, setDaysEnabled] = useState([true, true, true, true, true, false, false]);
         const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         const [loading, setLoading] = useState(false);
@@ -283,7 +284,14 @@ const ManageSlots: React.FC = () => {
                     </Card>
 
                     <div style={{ marginTop: 32, textAlign: 'center' }}>
-                        <Button type="primary" size="large" htmlType="submit" loading={loading} icon={<CheckCircleOutlined />} style={{ minWidth: 200, height: 50, borderRadius: 25, boxShadow: '0 4px 14px rgba(24, 144, 255, 0.3)' }}>
+                        <Button
+                            type="primary"
+                            size="large"
+                            htmlType="submit"
+                            loading={loading}
+                            disabled={!startDateValue}
+                            icon={<CheckCircleOutlined />}
+                            style={{ minWidth: 200, height: 50, borderRadius: 25, boxShadow: startDateValue ? '0 4px 14px rgba(24, 144, 255, 0.3)' : 'none' }}>
                             Publish Schedule
                         </Button>
                     </div>
@@ -768,16 +776,42 @@ const ManageSlots: React.FC = () => {
         const [viewService, setViewService] = useState<string>('');
         const [scheduleSlots, setScheduleSlots] = useState<any[]>([]);
         const [loading, setLoading] = useState(false);
-
-        useEffect(() => {
-            if (activeTab === '3') {
-                fetchSchedule();
-            }
-        }, [activeTab, viewService]);
-
         const [editingSlot, setEditingSlot] = useState<any>(null);
         const [isEditModalOpen, setIsEditModalOpen] = useState(false);
         const [updateLoading, setUpdateLoading] = useState(false);
+
+        // Define fetchSchedule BEFORE useEffect to avoid TDZ (temporal dead zone) error
+        const fetchSchedule = async () => {
+            if (!schoolId) return;
+            setLoading(true);
+            try {
+                const serviceId = viewService ? parseInt(viewService) : undefined;
+                const data = await schoolService.getSlots(schoolId!, serviceId, 1, 200);
+                const rawSlots: any[] = data.slots || data || [];
+
+                // Deduplicate slots by startTime-endTime-serviceId key
+                // Backend may return multiple slot definitions; we show unique ones
+                const uniqueMap = new Map<string, any>();
+                rawSlots.forEach((slot: any) => {
+                    const key = `${slot.serviceId}-${slot.startTime}-${slot.endTime}-${slot.slotName}`;
+                    if (!uniqueMap.has(key)) {
+                        uniqueMap.set(key, slot);
+                    }
+                });
+
+                setScheduleSlots(Array.from(uniqueMap.values()));
+            } catch (error) {
+                message.error('Failed to fetch schedule');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        // Run on mount (component mounts when tab is switched to "View All Slots")
+        // and whenever the service filter changes
+        useEffect(() => {
+            fetchSchedule();
+        }, [viewService]);
 
         const handleEditSlot = (slot: any) => {
             setEditingSlot({ ...slot });
@@ -814,20 +848,7 @@ const ManageSlots: React.FC = () => {
             }
         };
 
-        const fetchSchedule = async () => {
-            // For "View Schedule", we show all created slots. 
-            // We can use getSlots API.
-            setLoading(true);
-            try {
-                const serviceId = viewService ? parseInt(viewService) : undefined;
-                const data = await schoolService.getSlots(schoolId!, serviceId, 1, 100);
-                setScheduleSlots(data.slots || []);
-            } catch (error) {
-                message.error('Failed to fetch schedule');
-            } finally {
-                setLoading(false);
-            }
-        };
+
 
         const columns = [
             {
@@ -836,11 +857,7 @@ const ManageSlots: React.FC = () => {
                 key: 'slotName',
                 render: (text: string) => <Text strong style={{ color: appTheme.text }}>{text}</Text>
             },
-            {
-                title: 'Time',
-                key: 'time',
-                render: (_: any, r: any) => <Tag color="cyan">{r.startTime} - {r.endTime}</Tag>
-            },
+
             {
                 title: 'Service',
                 key: 'service',
